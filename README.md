@@ -117,70 +117,15 @@ print(response["messages"][-1].content)
 
 ## RAG Pipeline
 
-We maintain topic-separated AstraDB vectorstores and use them as efficient retrievers for RAG. Key points:
+Simple strategy (concise):
 
-- Separate collections: `prompt_engineering` and `paddy_cultivation` (each its own AstraDB collection/vectorstore).
-- Reuse embeddings stored in AstraDB so we don't recompute embeddings on every request; add new documents with `add_documents()` to incrementally update a collection.
-- Each topic-backed vectorstore is exposed via MCP tools (one tool per topic). Adding a new topic/tool to the MCP server does not require code changes to the core app—MCP will expose the new retriever automatically.
-- Retriever setup uses an MMR-style search for diversity: `store.as_retriever(search_type="mmr", search_kwargs={"k": k})`.
+- Document ingestion: WebLoader, PyPDFLoader
+- Chunking: RecursiveCharacterTextSplitter with `chunk_size=1000` and `chunk_overlap=100`
+- Embeddings: Gemini embedding model (e.g., `models/text-embedding-004`)
+- Vectorstore: AstraDB (topic-separated collections)
+- Retrieval: MMR retrieval technique, return top_k = 5 (recommended `fetch_k` ~ 20)
 
-Pipeline (concise, technical):
-
-| Ingest | Chunking / Splitter | Embedding | Vectorstore (AstraDB) | Retriever (MMR) | RAG / Answering |
-|---|---|---|---|---|---|
-| ```text
-Ingest
-Loaders: WebBaseLoader, PyPDFLoader, file loaders
-Normalize text & metadata
-When: CI or one-time build / incremental add
-``` | ```text
-Chunking
-Splitter: RecursiveCharacterTextSplitter
-Defaults: chunk_size=1000
-chunk_overlap=200
-Strategy: semantic-first, fallbacks to fixed-size
-``` | ```text
-Embeddings
-Model: Google GenAI / Gemini (e.g. models/text-embedding-004)
-Compute once per chunk; cache in AstraDB
-Batching: 256-1024 tokens per batch
-``` | ```text
-Vectorstore
-Collections per topic: prompt_engineering, paddy_cultivation
-API: AstraDBVectorStore(collection_name=...)
-Update: store.add_documents() (incremental)
-Use namespaces for segregation
-``` | ```text
-Retriever
-Search type: MMR (diverse retrieval)
-API: store.as_retriever(search_type="mmr", search_kwargs={"k":5, "fetch_k":20})
-Tunable: k (return size), fetch_k (candidate pool)
-``` | ```text
-RAG / Answering
-Build context from retrieved docs
-LLM call: temperature=0.0-0.3, max_output_tokens=512-2048
-Include inline citations (source, page)
-Fallback: if docs irrelevant → rewrite & re-retrieve
-``` |
-
-Notes: tune `chunk_size`/`chunk_overlap` and `fetch_k` to trade off latency vs recall. Helpers in `vectorstore` encapsulate these steps and ensure runtime queries reuse AstraDB collections (no re-embedding per query).
-
-Example helper usage (short):
-```python
-# Helpers provide: create_prompt_engineering_store, create_paddy_cultivation_store, get_retriever
-from vectorstore import create_prompt_engineering_store, get_retriever
-
-# Build/connect to collection (do once or in CI)
-store = create_prompt_engineering_store(documents=docs, embeddings=embeddings)
-
-# Create retriever for runtime queries
-retriever = get_retriever(store, k=5)
-results = retriever.invoke("What is prompt engineering?")
-```
-
-Notes:
-- Requires `ASTRA_DB_API_ENDPOINT` and `ASTRA_DB_APPLICATION_TOKEN` in environment.
-- Helpers avoid re-embedding by reusing existing AstraDB collections and support incremental updates via `add_documents()`.
+Notes: compute embeddings once and reuse; update collections incrementally with `add_documents()`.
 
 ## 🌐 Remote MCP Server Integration
 
@@ -494,7 +439,6 @@ sowiz-agentic-rag/
 ├── pyproject.toml        # Project metadata
 └── README.md             # This file
 ```
-
 ---
 
 ## 📦 Dependencies
