@@ -115,6 +115,75 @@ print(response["messages"][-1].content)
 
 ## 🌐 Remote MCP Server Integration
 
+## RAG Pipeline
+
+We maintain topic-separated AstraDB vectorstores and use them as efficient retrievers for RAG. Key points:
+
+- Separate collections: `prompt_engineering` and `paddy_cultivation` (each its own AstraDB collection/vectorstore).
+- Reuse embeddings stored in AstraDB so we don't recompute embeddings on every request; add new documents with `add_documents()` to incrementally update a collection.
+- Each topic-backed vectorstore is exposed via MCP tools (one tool per topic). Adding a new topic/tool to the MCP server does not require code changes to the core app—MCP will expose the new retriever automatically.
+- Retriever setup uses an MMR-style search for diversity: `store.as_retriever(search_type="mmr", search_kwargs={"k": k})`.
+
+Pipeline (concise, technical):
+
+| Ingest | Chunking / Splitter | Embedding | Vectorstore (AstraDB) | Retriever (MMR) | RAG / Answering |
+|---|---|---|---|---|---|
+| ```text
+Ingest
+Loaders: WebBaseLoader, PyPDFLoader, file loaders
+Normalize text & metadata
+When: CI or one-time build / incremental add
+``` | ```text
+Chunking
+Splitter: RecursiveCharacterTextSplitter
+Defaults: chunk_size=1000
+chunk_overlap=200
+Strategy: semantic-first, fallbacks to fixed-size
+``` | ```text
+Embeddings
+Model: Google GenAI / Gemini (e.g. models/text-embedding-004)
+Compute once per chunk; cache in AstraDB
+Batching: 256-1024 tokens per batch
+``` | ```text
+Vectorstore
+Collections per topic: prompt_engineering, paddy_cultivation
+API: AstraDBVectorStore(collection_name=...)
+Update: store.add_documents() (incremental)
+Use namespaces for segregation
+``` | ```text
+Retriever
+Search type: MMR (diverse retrieval)
+API: store.as_retriever(search_type="mmr", search_kwargs={"k":5, "fetch_k":20})
+Tunable: k (return size), fetch_k (candidate pool)
+``` | ```text
+RAG / Answering
+Build context from retrieved docs
+LLM call: temperature=0.0-0.3, max_output_tokens=512-2048
+Include inline citations (source, page)
+Fallback: if docs irrelevant → rewrite & re-retrieve
+``` |
+
+Notes: tune `chunk_size`/`chunk_overlap` and `fetch_k` to trade off latency vs recall. Helpers in `vectorstore` encapsulate these steps and ensure runtime queries reuse AstraDB collections (no re-embedding per query).
+
+Example helper usage (short):
+```python
+# Helpers provide: create_prompt_engineering_store, create_paddy_cultivation_store, get_retriever
+from vectorstore import create_prompt_engineering_store, get_retriever
+
+# Build/connect to collection (do once or in CI)
+store = create_prompt_engineering_store(documents=docs, embeddings=embeddings)
+
+# Create retriever for runtime queries
+retriever = get_retriever(store, k=5)
+results = retriever.invoke("What is prompt engineering?")
+```
+
+Notes:
+- Requires `ASTRA_DB_API_ENDPOINT` and `ASTRA_DB_APPLICATION_TOKEN` in environment.
+- Helpers avoid re-embedding by reusing existing AstraDB collections and support incremental updates via `add_documents()`.
+
+## 🌐 Remote MCP Server Integration
+
 This system leverages a **remote MCP (Model Context Protocol) server** for document retrieval and knowledge-based tools.
 
 ### MCP Server Details
@@ -123,7 +192,7 @@ This system leverages a **remote MCP (Model Context Protocol) server** for docum
 - **Hosted on**: [MCP Cloud](https://mcp.run) 
 - **Server URL**: `https://rag-mcp-tools.fastmcp.app/mcp`
 
-### Available Tools
+### Available RAG Tools
 
 The remote MCP server provides two specialized knowledge retrieval tools:
 
@@ -181,50 +250,50 @@ The system uses **LangGraph** to orchestrate a multi-agent workflow with conditi
 ### Agent Flow Diagram
 
 ```
-┌──────────┐
-│  START   │
-└─────┬────┘
-      │
-      ▼
-┌─────────────┐
-│   Agent     │  ◄── Decides: Retrieve or Answer directly?
-│  (Router)   │
-└──────┬──────┘
-       │
-       ├─────────────────┐
-       │                 │
-       ▼                 ▼
-  ┌─────────┐         ┌──────┐
-  │ Retrieve│         │  END │
-  │  (MCP)  │         └──────┘
-  └────┬────┘
-       │
-       ▼
-  ┌──────────────┐
-  │Grade Documents│  ◄── Are docs relevant?
-  └──────┬───────┘
-         │
-    ┌────┴────┐
-    │         │
-    NO       YES
-    │         │
-    ▼         ▼
-┌────────┐  ┌──────────────────────┐
-│Rewrite │  │ Parallel Execution:   │
-│Query   │  │ • Extract Docs        │
-└───┬────┘  │ • Draft Answer        │
-    │       └──────────┬───────────┘
-    │                  │
-    │                  ▼
-    │           ┌──────────────┐
-    └──────────►│Final Answer  │
-                │(+Citations)  │
-                └──────┬───────┘
+       ┌──────────┐
+       │  START   │
+       └─────┬────┘
+             │
+             ▼
+       ┌─────────────┐
+──────►┤   Agent     │ ◄── Decides: Retrieve or Answer directly?
+│      │  (Router)   │
+│      └──────┬──────┘
+│             │
+│      ┌──────┴──────────┐
+│      │                 │
+│      ▼                 ▼
+│ ┌─────────┐        ┌──────┐
+│ │ Retrieve│        │  END │
+│ │  (MCP)  │        └──────┘
+│ └────┬────┘
+│      │
+│      ▼
+│ ┌──────────────┐
+│ │Grade Documents│  ◄── Are docs relevant?
+│ └──────┬───────┘
+│        │
+│   ┌────┴────┐
+│   │         │
+│   NO       YES
+│   │         │
+│   ▼         ▼
+│┌────────┐ ┌──────────────────────┐
+└┤Rewrite │ │ Parallel Execution:   │
+ │Query   │ │ • Extract Docs       │
+ └────────┘ │ • Draft Answer       │
+            └──────────┬───────────┘
                        │
                        ▼
-                   ┌──────┐
-                   │  END │
-                   └──────┘
+            ┌──────────────┐
+            │ Final Answer │
+            │ (+Citations) │
+            └──────┬───────┘
+                   │
+                   ▼
+               ┌──────┐
+               │  END │
+               └──────┘
 ```
 
 ### State Schema
@@ -331,7 +400,16 @@ The final answer includes inline citations:
 
 ### 1. MCP Cloud Deployment (Remote Server)
 
-![MCP Cloud Deployment](screenshots/mcp_cloud_deployment.png)
+<table>
+  <tr>
+    <td>
+      <img src="screenshots/fastmcp-cloud-MCP-inspector.png" alt="MCP Inspector 1" width="500" />
+    </td>
+    <td>
+      <img src="screenshots/tool-calling-mcp-tool.png" alt="MCP Inspector 2" width="500" />
+    </td>
+  </tr>
+</table>
 
 **Description**: The remote MCP server hosted on MCP Cloud showing:
 - Active server status and health monitoring
@@ -341,64 +419,51 @@ The final answer includes inline citations:
 
 ---
 
-### 2. Streamlit UI - Chat Interface
+### 2. Streamlit UI - Chat Interface & State Inspector
 
-![Streamlit Chat](screenshots/streamlit_chat.png)
+<table>
+  <tr>
+    <td>
+      <img src="screenshots/chat-interface-1.png" alt="Streamlit Chat 1" width="380" />
+    </td>
+    <td>
+      <img src="screenshots/chat-interface-2.png" alt="Streamlit Chat 2" width="380" />
+    </td>
+    <td>
+      <img src="screenshots/chat-interface-3.png" alt="Streamlit Chat 3" width="380" />
+    </td>
+  </tr>
+</table>
 
-**Description**: Main chat interface showing:
+**Description**: Combined view showing the main chat interface alongside the state inspector. Includes:
 - User query input
 - Assistant response with inline citations
-- Clean conversational UI
+- Sidebar inspector with retrieved documents, citations, draft answer, and raw state for debugging
 
 ---
 
-### 3. Streamlit UI - State Inspector
+### 3. Persistent Memory
 
-![State Inspector](screenshots/state_inspector.png)
+![Persistent Memory](screenshots/memory-conversation.png)
 
-**Description**: Sidebar inspector showing:
-- **Retrieved Documents**: Top-ranked documents with source metadata
-- **Citations**: Formatted source references
-- **Draft Answer**: Pre-citation draft text
-- **Raw State**: Full state object for debugging
+**Description**: Demonstrates that the application implements persistent conversation memory. Key points:
+- Uses `MemorySaver` checkpointer to persist conversation state across runs
+- Conversations are tracked by a `thread_id` so different sessions keep separate histories
+- Persisted state includes messages, retrieved documents, citations, and draft answers
 
----
+Example usage:
+```python
+from langgraph.checkpoint.memory import MemorySaver
 
-### 4. LangGraph Workflow Visualization
+memory = MemorySaver()
+chatbot = workflow.compile(checkpointer=memory)
 
-![Workflow Graph](screenshots/workflow_graph.png)
+# When invoking, pass a thread id to persist/reuse the conversation
+# config={"configurable": {"thread_id": "1"}}
+```
 
-**Description**: Visual representation of the LangGraph workflow showing:
-- Agent routing logic
-- Tool invocation nodes
-- Conditional edges (grading, rewriting)
-- Parallel execution paths
-- Memory checkpointer integration
 
----
 
-### 📷 How to Capture Screenshots
-
-#### For MCP Cloud Deployment (`mcp_cloud_deployment.png`):
-- Navigate to [MCP Cloud Dashboard](https://mcp.run)
-- Show your deployed `rag-tool-remote-mcp` server
-- Capture: Server status, available tools, endpoint URL, logs/metrics
-- Ensure both tools are visible: `retrieve_prompt_engineering_links`, `retrieve_paddy_cultivation`
-
-#### For Streamlit Chat (`streamlit_chat.png`):
-- Run `streamlit run app.py`
-- Ask: "What is prompt engineering?"
-- Wait for complete answer with citations
-- Capture: Chat interface with user question + assistant answer
-
-#### For State Inspector (`state_inspector.png`):
-- From the same Streamlit session
-- Expand the sidebar sections
-- Capture: Retrieved Documents, Citations, and Draft Answer sections
-
-#### For Workflow Graph (`workflow_graph.png`):
-Generate programmatically:
-```bash
 python -c "from src.graph import chatbot; png = chatbot.get_graph(xray=True).draw_mermaid_png(); open('screenshots/workflow_graph.png', 'wb').write(png)"
 ```
 
