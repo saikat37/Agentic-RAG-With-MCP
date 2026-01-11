@@ -87,8 +87,12 @@ def build_workflow() -> StateGraph:
 # Build and compile the workflow
 workflow = build_workflow()
 
+from langgraph.checkpoint.memory import InMemorySaver
+
+checkpointer = InMemorySaver()
+
 # Compile graph (LangGraph Studio provides its own persistence, so no checkpointer here)
-chatbot = workflow.compile()
+chatbot = workflow.compile(checkpointer=checkpointer)
 
 
 # Helper to display graph (works in notebook or saves to file when run as script)

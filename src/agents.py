@@ -37,17 +37,6 @@ load_dotenv()
 # -----------------------------
 llm = ModelLoader().load_llm()
 
-# from langchain_google_genai import ChatGoogleGenerativeAI
-
-# llm = ChatGoogleGenerativeAI(
-#     model="gemini-3-flash-preview",
-#     temperature=0.3,  
-#     max_tokens=None,
-#     timeout=None,
-#     max_retries=2,
-#     # other params...
-# )  
-
 # -----------------------------
 # Async Loop for Backend Tasks
 # -----------------------------
