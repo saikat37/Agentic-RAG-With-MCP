@@ -407,13 +407,6 @@ chatbot = workflow.compile(checkpointer=memory)
 # config={"configurable": {"thread_id": "1"}}
 ```
 
-
-
-python -c "from src.graph import chatbot; png = chatbot.get_graph(xray=True).draw_mermaid_png(); open('screenshots/workflow_graph.png', 'wb').write(png)"
-```
-
-**Tips**: Use high resolution (1920x1080+), ensure text is readable, use light theme for better visibility.
-
 ---
 
 ## 🛠️ Project Structure
