@@ -1,0 +1,10 @@
+{
+  "$schema": "https://langchain-ai.github.io/langgraph/schemas/langgraph.schema.json",
+  "graphs": {
+    "chatbot": "./src/graph.py:chatbot"
+  },
+  "env": ".env",
+  "python_version": "3.11",
+  "dependencies": ["./requirements.txt"],
+  "pythonpath": ["./", "./src"]
+}

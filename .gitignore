@@ -1,0 +1,13 @@
+.venv
+.env
+logs/
+__pycache__/
+*.pyc
+.DS_Store
+vectorstores/
+.langgraph_api
+main.py
+1-AgenticRAG (1).ipynb
+data/
+uv.lock
+project.toml
