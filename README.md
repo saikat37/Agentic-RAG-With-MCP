@@ -444,11 +444,11 @@ To test the system:
 
 This project includes observability support to capture agent decisions, tool calls, and traces. We integrate with Langsmith (LangChain's tracing/observability platform) to visualize runs, inspect tool usage, and diagnose agent behavior.
 
-![Langsmith Trace](screenshots/langsmith-trace.png)
+![Langsmith Trace](screenshots/langsmith.png)
 
 ### Langsmith Setup
 
-Add the following to your environment (keep your API key secret):
+Add the following to your environment:
 
 ```env
 # Langsmith integration
