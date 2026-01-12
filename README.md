@@ -54,6 +54,25 @@ uv pip install -e .
 # Create virtual environment
 python -m venv .venv
 
+
+## 🔍 Observability
+
+This project includes observability support to capture agent decisions, tool calls, and traces. We integrate with Langsmith (LangChain's tracing/observability platform) to visualize runs, inspect tool usage, and diagnose agent behavior.
+
+![Langsmith Trace](screenshots/langsmith-trace.png)
+
+### Langsmith Setup
+
+Add the following to your environment (keep your API key secret):
+
+```env
+# Langsmith integration
+LANGSMITH_API_KEY="YOUR_LANGSMITH_API_KEY"  # keep this secret
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT='https://api.smith.langchain.com'
+LANGCHAIN_PROJECT='your-project-name'
+```
+
 # Activate
 .venv\Scripts\activate  # Windows
 source .venv/bin/activate  # macOS/Linux
