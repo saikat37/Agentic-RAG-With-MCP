@@ -195,50 +195,7 @@ The system uses **LangGraph** to orchestrate a multi-agent workflow with conditi
 ### Agent Flow Diagram
 
 ```
-       ┌──────────┐
-       │  START   │
-       └─────┬────┘
-             │
-             ▼
-       ┌─────────────┐
-──────►┤   Agent     │ ◄── Decides: Retrieve or Answer directly?
-│      │  (Router)   │
-│      └──────┬──────┘
-│             │
-│      ┌──────┴──────────┐
-│      │                 │
-│      ▼                 ▼
-│ ┌─────────┐        ┌──────┐
-│ │ Retrieve│        │  END │
-│ │  (MCP)  │        └──────┘
-│ └────┬────┘
-│      │
-│      ▼
-│ ┌──────────────┐
-│ │Grade Documents│  ◄── Are docs relevant?
-│ └──────┬───────┘
-│        │
-│   ┌────┴────┐
-│   │         │
-│   NO       YES
-│   │         │
-│   ▼         ▼
-│┌────────┐ ┌──────────────────────┐
-└┤Rewrite │ │ Parallel Execution:   │
- │Query   │ │ • Extract Docs       │
- └────────┘ │ • Draft Answer       │
-            └──────────┬───────────┘
-                       │
-                       ▼
-            ┌──────────────┐
-            │ Final Answer │
-            │ (+Citations) │
-            └──────┬───────┘
-                   │
-                   ▼
-               ┌──────┐
-               │  END │
-               └──────┘
+![Langgraph Workflow](screenshots/langgraph-workflow.png)
 ```
 
 ### State Schema
