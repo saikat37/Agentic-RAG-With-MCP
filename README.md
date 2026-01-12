@@ -134,7 +134,7 @@ This system leverages a **remote MCP (Model Context Protocol) server** for docum
 ### MCP Server Details
 
 - **Repository**: [rag-tool-remote-mcp](https://github.com/saikat37/rag-tool-remote-mcp)
-- **Hosted on**: [MCP Cloud](https://mcp.run) 
+- **Hosted on**: [FastMCP Cloud](https://fastmcp.cloud/) 
 - **Server URL**: `https://rag-mcp-tools.fastmcp.app/mcp`
 
 ### Available RAG Tools
