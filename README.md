@@ -28,8 +28,8 @@ Then install the project:
 
 ```bash
 # Clone the repository
-git clone https://github.com/saikat37/sowiz-agentic-rag.git
-cd sowiz-agentic-rag
+git clone https://github.com/saikat37/Agentic-RAG-With-MCP.git
+cd Agentic-RAG-With-MCP
 
 # Create virtual environment with uv
 uv venv
@@ -42,7 +42,7 @@ uv venv
 source .venv/bin/activate
 
 # Install dependencies
-uv pip install -r requirements.txt
+uv add -r requirements.txt
 
 # Or install in editable mode
 uv pip install -e .
