@@ -194,9 +194,7 @@ The system uses **LangGraph** to orchestrate a multi-agent workflow with conditi
 
 ### Agent Flow Diagram
 
-```
 ![Langgraph Workflow](screenshots/langgraph-workflow.png)
-```
 
 ### State Schema
 
